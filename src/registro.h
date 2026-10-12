@@ -22,6 +22,4 @@
 
 
 
-
-
 #endif // REGISTRO_H

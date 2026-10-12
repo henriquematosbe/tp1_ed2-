@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
         ImprimirChaves(nomeArq, quantidade);
     }
 
-    // ── 5. Executa o metodo escolhido ──
+    // ─ 5. Executa o metodo escolhido ──
     Metricas metricasIndice;
     Metricas metricasPesquisa;
     Registro reg;

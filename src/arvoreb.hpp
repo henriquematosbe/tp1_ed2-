@@ -1,10 +1,7 @@
-// A arvore fica na memoria e guarda so (chave, posicao do registro).
-// O registro completo fica no arquivo e e lido no fim da pesquisa.
-
 #ifndef ARVOREB_HPP
 #define ARVOREB_HPP
 
-#include <cstdio>        // FILE
+#include <cstdio>        
 #include "registro.hpp"  // Registro e Metricas
 
 #define M  = 2;        // ordem: cada pagina tem de M a 2M itens

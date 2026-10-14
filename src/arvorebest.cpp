@@ -67,7 +67,7 @@ bool PesquisarArvoreBEstrela(FILE* arq, ApontadorBE raiz, int chave,
     return false;   // a chave nao esta no arquivo
 }
 
-// ───────────────────── Insercao ─────────────────────
+// Insercao 
 
 // Insere 'item' na subarvore 'p' (funcao recursiva).
 // Se a pagina 'p' encher e dividir, avisa quem chamou:

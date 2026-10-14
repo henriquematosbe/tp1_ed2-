@@ -4,8 +4,8 @@
 #include <cstdio>        
 #include "registro.hpp"  // Registro e Metricas
 
-#define M  = 2;        // ordem: cada pagina tem de M a 2M itens
-#define MM = 2 * M;    // maximo de itens em uma pagina
+#define M 2        // ordem: cada pagina tem de M a 2M itens
+#define MM (2 * M)  // maximo de itens em uma pagina
 
 // Item guardado na arvore
 struct TipoRegistro {

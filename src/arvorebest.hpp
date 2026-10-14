@@ -1,9 +1,17 @@
-//coloquei seufixo para nao dar conflito com as variaveis do daniel (que vai fazer avoreB)
+// arvorebest.hpp
+// Arvore B* (versao do Ziviani) para pesquisa externa.
+// As paginas internas guardam apenas chaves (indice); as folhas guardam
+// a chave e a posicao do registro no arquivo. O registro completo fica
+// so no arquivo binario e e lido do disco ao final da pesquisa.
+//
+// Todos os nomes usam o sufixo _BE (B-Estrela) para nao conflitar com
+// os nomes da arvore B (metodo 3) quando o main incluir os dois headers.
+
 #ifndef ARVOREBEST_HPP
 #define ARVOREBEST_HPP
 
 #include <cstdio>       // FILE
-#include "registro.h"   // Registro e Metricas
+#include "registro.hpp"   // Registro e Metricas
 
 constexpr int M_BE  = 2;          // ordem da arvore B*
 constexpr int MM_BE = 2 * M_BE;   // maximo de chaves/itens em uma pagina

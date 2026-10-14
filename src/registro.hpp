@@ -1,25 +1,21 @@
-//Registros e Metricas
-#ifndef REGISTRO_H
-#define REGISTRO_H
+#ifndef REGISTRO_HPP
+#define REGISTRO_HPP
 
-
-  // registro do arquivo binario
-  struct Registro{
+// Registro armazenado apenas no arquivo binario
+struct Registro {
     int chave;
     long dado1;
     char dado2[5000];
+};
 
+// Nome curto usado nos metodos 1 e 2
+typedef Registro tipoitem;
 
-  };
-  //metricas de cada etapa
-  struct Metricas{
-    long transferencia = 0;// n de transferencias
-    long comparacoes = 0; // n de comparacoes
-    double tempo = 0.0; //seg
+// Metricas de uma etapa (criacao do indice ou pesquisa)
+struct Metricas {
+    long transferencias = 0; // leituras da memoria externa
+    long comparacoes = 0;    // comparacoes entre chaves
+    double tempo = 0.0;      // segundos
+};
 
-  };
-
-
-
-
-#endif // REGISTRO_H
+#endif

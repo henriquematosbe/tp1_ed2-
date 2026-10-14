@@ -1,4 +1,4 @@
-#include "arquivo.h"
+#include "arquivo.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -7,7 +7,7 @@
 #include <random>
 #include <vector>
 
-#include "registro.h"
+#include "registro.hpp"
 
 bool ArquivoValido(const std::string& nome, int quantidade) {
     std::error_code erro;

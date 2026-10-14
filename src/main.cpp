@@ -1,137 +1,129 @@
-#include <chrono>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <filesystem>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include <string>
-
-#include "arquivo.h"
-#include "registro.h"
-
-// Mostra como o programa deve ser chamado
-void ImprimirUso() {
-    std::fprintf(stderr,
-        "Uso: pesquisa <metodo> <quantidade> <situacao> <chave> [-P]\n"
-        "  metodo:    1 = sequencial indexado, 2 = arvore binaria,\n"
-        "             3 = arvore B, 4 = arvore B*\n"
-        "  quantidade: quantidade de registros do arquivo (maior que 0)\n"
-        "  situacao:  1 = ascendente, 2 = descendente, 3 = aleatorio\n"
-        "  chave:     chave a ser pesquisada\n"
-        "  -P:        imprime as chaves do arquivo na tela\n");
-}
-
-// Converte texto em inteiro. Retorna false se o texto nao for um numero.
-bool LerInteiro(const char* texto, int& valor) {
-    char* fim;
-    long convertido = std::strtol(texto, &fim, 10);
-    if (*texto == '\0' || *fim != '\0') return false;
-    valor = (int)convertido;
-    return true;
-}
-
-// Imprime as metricas de uma etapa em formato fixo (facil de ler por script)
-void ImprimirMetricas(const char* etapa, const Metricas& m) {
-    std::printf("%s_TRANSF=%ld %s_COMP=%ld %s_TEMPO=%.9f\n",
-                etapa, m.transferencias, etapa, m.comparacoes, etapa, m.tempo);
-}
+#include <vector>
+#include "arquivo.hpp"
+#include "registro.hpp"
+#include "sequencial.hpp"
+#include "arvorebin.hpp"
+#include "arvoreb.hpp"
 
 int main(int argc, char* argv[]) {
-    // ── 1. Validacao dos argumentos ──
+    // Uso: pesquisa <metodo> <quantidade> <situacao> <chave> [-P]
     if (argc < 5 || argc > 6) {
-        ImprimirUso();
+        printf("Uso: pesquisa <metodo> <quantidade> <situacao> <chave> [-P]\n");
+        printf("  metodo: 1 = sequencial indexado, 2 = arvore binaria, 3 = arvore B, 4 = arvore B*\n");
+        printf("  situacao: 1 = ascendente, 2 = descendente, 3 = aleatorio\n");
         return 1;
     }
 
-    int metodo, quantidade, situacao, chave;
-    if (!LerInteiro(argv[1], metodo) || !LerInteiro(argv[2], quantidade) ||
-        !LerInteiro(argv[3], situacao) || !LerInteiro(argv[4], chave)) {
-        std::fprintf(stderr, "Erro: os quatro primeiros argumentos devem ser numeros inteiros.\n");
-        ImprimirUso();
-        return 1;
-    }
+    int metodo = atoi(argv[1]);
+    int quantidade = atoi(argv[2]);
+    int situacao = atoi(argv[3]);
+    int chave = atoi(argv[4]);
+    int mostrarChaves = (argc == 6 && strcmp(argv[5], "-P") == 0);
 
-    bool imprimirChaves = false;
-    if (argc == 6) {
-        if (std::strcmp(argv[5], "-P") != 0) {
-            std::fprintf(stderr, "Erro: argumento opcional invalido (use -P).\n");
-            return 1;
-        }
-        imprimirChaves = true;
-    }
-
-    if (metodo < 1 || metodo > 4) {
-        std::fprintf(stderr, "Erro: metodo deve ser de 1 a 4.\n");
+    if (argc == 6 && !mostrarChaves) {
+        printf("Erro: argumento opcional invalido (use -P).\n");
         return 1;
     }
-    if (quantidade <= 0) {
-        std::fprintf(stderr, "Erro: quantidade deve ser maior que 0.\n");
+    if (metodo < 1 || metodo > 4 || quantidade <= 0 || situacao < 1 || situacao > 3) {
+        printf("Erro: metodo deve ser 1 a 4, quantidade maior que 0 e situacao 1 a 3.\n");
         return 1;
     }
-    if (situacao < 1 || situacao > 3) {
-        std::fprintf(stderr, "Erro: situacao deve ser 1, 2 ou 3.\n");
-        return 1;
-    }
-
-    // ── 2. Situacoes de ordem que cada metodo aceita ──
-    // (confirmar com o professor quais combinacoes valem)
     if (metodo == 1 && situacao != 1) {
-        std::fprintf(stderr, "Erro: o sequencial indexado exige arquivo ascendente (situacao 1).\n");
+        printf("Erro: o sequencial indexado exige arquivo ascendente (situacao 1).\n");
         return 1;
     }
     if (metodo == 2 && situacao != 3) {
-        std::fprintf(stderr, "Erro: a arvore binaria so se aplica a arquivo aleatorio (situacao 3).\n");
+        printf("Erro: a arvore binaria so se aplica a arquivo aleatorio (situacao 3).\n");
+        return 1;
+    }
+    if (metodo == 4) {
+        printf("Metodo 4 (arvore B*) ainda nao implementado.\n");
         return 1;
     }
 
-    // ── 3. Garante que o arquivo de dados existe (fora do cronometro) ──
-    std::filesystem::create_directories("dados");
-    std::string nomeArq = "dados/dados_" + std::to_string(quantidade) + "_" +
+    // Garante que o arquivo de dados existe (fora do tempo medido)
+    std::string nomeArq = "dados_" + std::to_string(quantidade) + "_" +
                           std::to_string(situacao) + ".bin";
-
     if (!ArquivoValido(nomeArq, quantidade)) {
         if (!GerarArquivo(nomeArq, quantidade, situacao)) {
-            std::fprintf(stderr, "Erro: nao foi possivel criar o arquivo %s.\n", nomeArq.c_str());
+            printf("Erro: nao foi possivel criar o arquivo %s.\n", nomeArq.c_str());
             return 1;
         }
     }
 
-    // ── 4. Opcao -P: mostra as chaves do arquivo ──
-    if (imprimirChaves) {
-        std::printf("Chaves do arquivo:\n");
+    if (mostrarChaves) {
+        printf("Chaves do arquivo:\n");
         ImprimirChaves(nomeArq, quantidade);
     }
 
-    // ─ 5. Executa o metodo escolhido ──
-    Metricas metricasIndice;
-    Metricas metricasPesquisa;
-    Registro reg;
-    bool encontrado = false;
+    Registro x;
+    x.chave = chave;
+    bool achou = false;
+    Metricas indice, pesquisa; // metricas das duas etapas
+    clock_t inicio;
 
-    switch (metodo) {
-        case 1:
-            // TODO: CriarIndiceSequencial(...) e PesquisarSequencial(...)
-            break;
-        case 2:
-            // TODO: CriarArvoreBinaria(...) e PesquisarArvoreBinaria(...)
-            break;
-        case 3:
-            // TODO: CriarArvoreB(...) e PesquisarArvoreB(...)
-            break;
-        case 4:
-            // TODO: CriarArvoreBEstrela(...) e PesquisarArvoreBEstrela(...)
-            break;
+    std::string nomeNos = "arvorebin_" + std::to_string(quantidade) + "_" +
+                          std::to_string(situacao) + ".idx";
+    std::vector<int> tabela;   // indice do metodo 1
+    ApontadorB raiz = NULL;    // arvore do metodo 3
+    FILE* arq = NULL;          // arquivo de dados (metodo 3)
+
+    if (metodo == 3) {
+        arq = fopen(nomeArq.c_str(), "rb");
+        if (arq == NULL) {
+            printf("Erro: nao foi possivel abrir %s.\n", nomeArq.c_str());
+            return 1;
+        }
     }
 
-    // ── 6. Resultado ──
-    if (encontrado) {
-        std::printf("ENCONTRADA=1\n");
-        std::printf("CHAVE=%d DADO1=%ld\n", reg.chave, reg.dado1);
-        std::printf("DADO2=%s\n", reg.dado2);
+    // ── Etapa 1: criacao do indice ──
+    inicio = clock();
+    if (metodo == 1)
+        CriarIndiceSequencial(nomeArq.c_str(), quantidade, &tabela,
+                              &indice.transferencias, &indice.comparacoes);
+    else if (metodo == 2)
+        CriarArvoreBinaria(nomeArq.c_str(), nomeNos.c_str(), quantidade,
+                           &indice.transferencias, &indice.comparacoes);
+    else if (!CriarArvoreB(arq, quantidade, &raiz, &indice)) {
+        printf("Erro: falha ao criar a arvore B.\n");
+        return 1;
+    }
+    // O tempo e medido aqui para todos os metodos (mesmo criterio)
+    indice.tempo = (double)(clock() - inicio) / CLOCKS_PER_SEC;
+    printf("INDICE_TRANSF=%ld INDICE_COMP=%ld INDICE_TEMPO=%.9f\n",
+           indice.transferencias, indice.comparacoes, indice.tempo);
+
+    // ── Etapa 2: pesquisa ──
+    inicio = clock();
+    if (metodo == 1)
+        achou = PesquisarSequencial(nomeArq.c_str(), quantidade, &tabela, &x,
+                                    &pesquisa.transferencias, &pesquisa.comparacoes);
+    else if (metodo == 2)
+        achou = PesquisarArvoreBinaria(nomeArq.c_str(), nomeNos.c_str(), &x,
+                                       &pesquisa.transferencias, &pesquisa.comparacoes);
+    else
+        achou = PesquisarArvoreB(arq, raiz, chave, &x, &pesquisa);
+    pesquisa.tempo = (double)(clock() - inicio) / CLOCKS_PER_SEC;
+    printf("PESQUISA_TRANSF=%ld PESQUISA_COMP=%ld PESQUISA_TEMPO=%.9f\n",
+           pesquisa.transferencias, pesquisa.comparacoes, pesquisa.tempo);
+
+    // ── Resultado ──
+    if (achou) {
+        printf("ENCONTRADA=1\n");
+        printf("CHAVE=%d DADO1=%ld\n", x.chave, x.dado1);
+        printf("DADO2=%.40s...\n", x.dado2); // so o comeco, o campo tem 5000 chars
     } else {
-        std::printf("ENCONTRADA=0\n");
+        printf("ENCONTRADA=0\n");
     }
-    ImprimirMetricas("INDICE", metricasIndice);
-    ImprimirMetricas("PESQUISA", metricasPesquisa);
 
+    if (metodo == 3) {
+        LiberarArvoreB(raiz);
+        fclose(arq);
+    }
     return 0;
 }

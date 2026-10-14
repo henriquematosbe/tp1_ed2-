@@ -1,20 +1,16 @@
-// arvoreb.hpp - Arvore B (Ziviani) para pesquisa externa.
-// A arvore fica na memoria e guarda so (chave, posicao do registro).
-// O registro completo fica no arquivo e e lido no fim da pesquisa.
-
 #ifndef ARVOREB_HPP
 #define ARVOREB_HPP
 
-#include <cstdio>        // FILE
+#include <cstdio>        
 #include "registro.hpp"  // Registro e Metricas
 
-const int M  = 2;        // ordem: cada pagina tem de M a 2M itens
-const int MM = 2 * M;    // maximo de itens em uma pagina
+#define M  = 2;        // ordem: cada pagina tem de M a 2M itens
+#define MM = 2 * M;    // maximo de itens em uma pagina
 
 // Item guardado na arvore
 struct TipoRegistro {
     int Chave;     // chave de pesquisa
-    int Posicao;   // numero do registro no arquivo (0, 1, 2, ...)
+    int Posicao;   // numero do registro no arquivo (0, 1, 2)
 };
 
 // Pagina da arvore: n itens e n+1 filhos

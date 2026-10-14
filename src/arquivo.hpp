@@ -1,6 +1,6 @@
 //gerar arquivo
-#ifndef ARQUIVO_HPP
-#define ARQUIVO_HPP
+#ifndef ARQUIVO_H
+#define ARQUIVO_H
 
 #include <string>
 

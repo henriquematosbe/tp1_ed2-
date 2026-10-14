@@ -28,6 +28,7 @@ static void InsereNaPagina(TipoApontador Ap, TipoRegistro Reg, TipoApontador ApD
     int k;
     k = Ap->n;
     NaoAchouPosicao = (k > 0);
+    
     while (NaoAchouPosicao) {
         m->comparacoes++;
         if (Reg.Chave >= Ap->r[k - 1].Chave) {

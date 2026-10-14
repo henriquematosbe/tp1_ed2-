@@ -4,13 +4,12 @@
 #include <cstdio>        // FILE
 #include "registro.hpp"  // Registro e Metricas
 
-constexpr int M_B  = 2;          // ordem da arvore B (use o mesmo valor da B*)
-constexpr int MM_B = 2 * M_B;    // maximo de itens em uma pagina
+#define int M_B  = 2;          // ordem da arvore B
+#define int MM_B = 2 * M_B;    // maximo de itens em uma pagina
 
-// Item guardado nas paginas: a chave e onde o registro esta no arquivo
 typedef struct {
     int chave;     // chave de pesquisa
-    int posicao;   // numero do registro no arquivo (0, 1, 2, ...)
+    int posicao;   // numero do registro no arquivo
 } ItemB;
 
 typedef struct PaginaB* ApontadorB;   // ponteiro para uma pagina

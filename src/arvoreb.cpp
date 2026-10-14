@@ -11,13 +11,13 @@
 // Usa versoes de 64 bits porque o arquivo pode passar de 2 GB.
 static int Seek64(FILE* arq, long long desloc) {
 #ifdef _WIN32
-    return _fseeki64(arq, desloc, SEEK_SET);       // Windows
+    return _fseeki64(arq, desloc, SEEK_SET);       //Windows
 #else
-    return fseeko(arq, (off_t)desloc, SEEK_SET);   // Linux
+    return fseeko(arq, (off_t)desloc, SEEK_SET);   //Linux
 #endif
 }
 
-static void Inicializa(TipoApontador* Arvore) {
+static void Inicializa(TipoApontador* Arvore) { //Utiliza no cria arvore
     *Arvore = NULL;
 }
 
@@ -85,7 +85,7 @@ static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu, TipoRegistro
         return;
     }
 
-    // Overflow: Pagina tem que ser dividida
+    //Overflow: Pagina tem que ser dividida
     //Cria e inicializa o apontador temporario
     ApTemp = (TipoApontador)malloc(sizeof(TipoPagina));
     ApTemp->n = 0;
@@ -117,7 +117,7 @@ static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m){
 
     Ins(Reg, *Ap, &Cresceu, &RegRetorno, &ApRetorno, m);
 
-    if (Cresceu) {   // Arvore cresce na altura pela raiz
+    if (Cresceu) {   //Arvore cresce na altura pela raiz
         ApTemp = (TipoApontador)malloc(sizeof(TipoPagina)); //Cria um apontador temporario 
         ApTemp->n = 1;
         ApTemp->r[0] = RegRetorno;
@@ -127,64 +127,67 @@ static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m){
     }
 }
 
-// Le o arquivo inteiro, registro por registro, e insere cada chave na arvore
+//Le o arquivo inteiro e insere cada chave na arvore
+//Principal responsavel para a criação da memoria na arvore 
 bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m){
     Registro reg;
     TipoRegistro item;
 
     Inicializa(Arvore);
-    rewind(arq);
+    rewind(arq); //volta pro inicio do arquivo
 
     for (int i = 0; i < quantidade; i++) {
         if (fread(&reg, sizeof(Registro), 1, arq) != 1) return false;
-        m->transferencias++;      // 1 leitura de registro
-
+        m->transferencias++;      //1 leitura de registro
         item.Chave = reg.chave;
-        item.Posicao = i;         // posicao do registro no arquivo
+        item.Posicao = i;         //posicao do registro no arquivo
         Insere(item, Arvore, m);
     }
     return true;
 }
 
-// Procura x->Chave a partir da pagina Ap. Se achar, *x recebe o item (com a Posicao do registro no arquivo).
+// Procura x->Chave a partir da pagina Ap. Se achar, x recebe o item (com a Posicao do registro no arquivo).
 static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m){
     
     long i = 1;
     if (Ap == NULL) return false;  
 
-    // Pesquisa sequencial para encontrar o intervalo desejado
+    //Pesquisa para encontrar o intervalo desejado, enquanto a chave for maior 
     while (i < Ap->n) {
         m->comparacoes++;
         if (x->Chave > Ap->r[i - 1].Chave) i++;
         else break;
     }
-    // Verifica se a chave desejada foi localizada
+    //Verifica se a chave foi localizada
     m->comparacoes++;
     if (x->Chave == Ap->r[i - 1].Chave) {
         *x = Ap->r[i - 1];
         return true;
     }
-    // Ativacao recursiva da Pesquisa em uma das subarvores (esquerda ou direita)
+    //Recursão da Pesquisa em uma das subarvores (esquerda ou direita)
     m->comparacoes++;
-    if (x->Chave < Ap->r[i - 1].Chave) return Pesquisa(x, Ap->p[i - 1], m);
-    else return Pesquisa(x, Ap->p[i], m);
-}
+    if (x->Chave < Ap->r[i - 1].Chave) 
+        return Pesquisa(x, Ap->p[i - 1], m); //desce pelo filho da esquerda
+    else return Pesquisa(x, Ap->p[i], m); //desce pelo filho da direita
+} 
 
+//Pesquisa tanto na arvore quanto no arquivo (transferencias)
 bool PesquisarArvoreB(FILE* arq, TipoApontador Arvore, int chave, Registro* reg, Metricas* m){
     
     TipoRegistro x;
     x.Chave = chave;
 
-    if (!Pesquisa(&x, Arvore, m)) return false;   // nao esta na arvore: nada e lido
-    // Achou na arvore: le o registro completo do arquivo
+    if (!Pesquisa(&x, Arvore, m)) return false;   //nao esta na arvore: nada e lido
+    //Achou na arvore: le o registro completo do arquivo
     if (Seek64(arq, (long long)x.Posicao * sizeof(Registro)) != 0) return false;
     if (fread(reg, sizeof(Registro), 1, arq) != 1) return false;
     m->transferencias++;
     return true;
 }
-
+//Libera a memoria utilizada para criação das paginas
 void LiberarArvoreB(TipoApontador Ap){
     if (Ap == NULL) return;
-    for (int i = 0; i <= Ap->n; i++) LiberarArvoreB(Ap->p[i]);
+    for (int i = 0; i <= Ap->n; i++) 
+        LiberarArvoreB(Ap->p[i]);
     free(Ap);
 }

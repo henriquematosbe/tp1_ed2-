@@ -60,7 +60,7 @@ bool PesquisarArvoreBEstrela(FILE* arq, ApontadorBE raiz, int chave,
                 (long long)p->u.externa.itens[i].posicao * sizeof(Registro);
             if (Seek64(arq, desloc) != 0) return false;
             if (fread(reg, sizeof(Registro), 1, arq) != 1) return false;
-            m->transferencia++;
+            m->transferencias++;
             return true;
         }
     }
@@ -223,7 +223,7 @@ void CriarArvoreBEstrela(FILE* arq, int quantidade, ApontadorBE* raiz, Metricas*
     Registro reg;
     for (int i = 0; i < quantidade; i++) {
         if (fread(&reg, sizeof(Registro), 1, arq) != 1) break;
-        m->transferencia++;           // 1 registro lido do disco
+        m->transferencias++;           // 1 registro lido do disco
 
         ItemFolhaBE item;
         item.chave = reg.chave;

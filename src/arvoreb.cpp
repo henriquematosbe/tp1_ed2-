@@ -35,12 +35,13 @@ static void InsereNaPagina(TipoApontador Ap, TipoRegistro Reg, TipoApontador ApD
             NaoAchouPosicao = FALSE;
             break;
         }
+        //empurra pra proxima posição, caso a chave seja menor
         Ap->r[k] = Ap->r[k - 1];
         Ap->p[k + 1] = Ap->p[k];
         k--;
         if (k < 1) NaoAchouPosicao = FALSE;
     }
-    //Adiciona o registro na pagina, caso aquela pagina não tenha nada (NaoAchouPosicao==FALSO)
+    //Adiciona a chave na pagina, caso aquela parte na pagina não tenha nada (NaoAchouPosicao==FALSO)
     Ap->r[k] = Reg;
     Ap->p[k + 1] = ApDir;
     Ap->n++;
@@ -98,10 +99,11 @@ static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu, TipoRegistro
         InsereNaPagina(Ap, *RegRetorno, *ApRetorno, m);
     }else
         InsereNaPagina(ApTemp, *RegRetorno, *ApRetorno, m);
-    
+    //"Motifica" o n
     for (j = M + 2; j <= MM; j++)
         InsereNaPagina(ApTemp, Ap->r[j - 1], Ap->p[j], m);
-
+    
+    //Atualiza as informações da pagina depois do overflow
     Ap->n = M;
     ApTemp->p[0] = Ap->p[M + 1];
     *RegRetorno = Ap->r[M];

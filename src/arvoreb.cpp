@@ -1,8 +1,11 @@
 #include "arvoreb.hpp"
 
-#include <chrono>
-#include <new>           // std::bad_alloc
-#include <sys/types.h>   // off_t (usado pelo fseeko no Linux)
+#include <cstdlib>   // malloc e free
+
+#ifndef TRUE
+#define TRUE  1
+#define FALSE 0
+#endif
 
 // Posiciona o arquivo em 'desloc' bytes desde o inicio.
 // Usa versoes de 64 bits porque o arquivo pode passar de 2 GB.
@@ -14,192 +17,172 @@ static int Seek64(FILE* arq, long long desloc) {
 #endif
 }
 
-// Segundos decorridos desde 'inicio'
-static double SegundosDesde(std::chrono::steady_clock::time_point inicio) {
-    return std::chrono::duration<double>(std::chrono::steady_clock::now() - inicio).count();
+static void Inicializa(TipoApontador* Arvore) {
+    *Arvore = NULL;
 }
 
-// Cria uma pagina vazia (sem itens e sem filhos)
-static ApontadorB NovaPagina() {
-    ApontadorB p = new PaginaB;
-    p->n = 0;
-    for (int i = 0; i <= MM_B; i++) p->filhos[i] = nullptr;
-    return p;
-}
-
-// Insere 'item' na posicao 'i' da pagina 'ap' (que tem espaco), junto com o
-// ponteiro 'apDir', que fica a direita do item.
-static void InsereNaPagina(ApontadorB ap, int i, ItemB item, ApontadorB apDir) {
+static void InsereNaPagina(TipoApontador Ap, TipoRegistro Reg, TipoApontador ApDir, Metricas* m) {
     
-    for (int j = ap->n; j > i; j--) {          // abre espaco deslocando para a direita
-        ap->itens[j]     = ap->itens[j - 1];
-        ap->filhos[j + 1] = ap->filhos[j];
+    short NaoAchouPosicao;
+    int k;
+
+    k = Ap->n;
+    NaoAchouPosicao = (k > 0);
+    while (NaoAchouPosicao) {
+        m->comparacoes++;
+        if (Reg.Chave >= Ap->r[k - 1].Chave) {
+            NaoAchouPosicao = FALSE;
+            break;
+        }
+        Ap->r[k] = Ap->r[k - 1];
+        Ap->p[k + 1] = Ap->p[k];
+        k--;
+        if (k < 1) NaoAchouPosicao = FALSE;
     }
-    ap->itens[i]      = item;
-    ap->filhos[i + 1] = apDir;
-    ap->n++;
+    Ap->r[k] = Reg;
+    Ap->p[k + 1] = ApDir;
+    Ap->n++;
 }
 
-// Insere 'item' na subarvore de raiz 'ap'. Se a subarvore cresceu (a pagina
-// dividiu), *cresceu = true e o item que deve subir fica em *itemRet, com a
-// nova pagina irma (a direita) em *apRet. Descer ate nullptr equivale a
-// "inserir abaixo de uma folha": o item sobe para a folha.
-static void Ins(ItemB item, ApontadorB ap, bool* cresceu, ItemB* itemRet, ApontadorB* apRet, Metricas* m) {
+static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu,
+                TipoRegistro* RegRetorno, TipoApontador* ApRetorno, Metricas* m) {
+    long i = 1;
+    long j;
+    TipoApontador ApTemp;
+
+    if (Ap == NULL) {
+        *Cresceu = TRUE;
+        (*RegRetorno) = Reg;
+        (*ApRetorno) = NULL;
+        return;
+    }
     
-  if (ap == nullptr) {
-        *cresceu = true;
-        *itemRet = item;
-        *apRet = nullptr;
+    while (i < Ap->n) {
+        m->comparacoes++;
+        if (Reg.Chave > Ap->r[i - 1].Chave) i++;
+        else break;
+    }
+
+    m->comparacoes++;
+    if (Reg.Chave == Ap->r[i - 1].Chave) {
+        printf(" Erro: Registro ja esta presente\n");
+        *Cresceu = FALSE;
         return;
     }
 
-    // Pesquisa sequencial na pagina: i = posicao do item (ou filho por onde
-    // descer). Cada chave examinada conta como 1 comparacao.
-    int i = 0;
-    while (i < ap->n) {
-        m->comparacoes++;
-        if (item.chave == ap->itens[i].chave) {   // chave repetida: ignora
-            *cresceu = false;
-            return;
-        }
-        if (item.chave < ap->itens[i].chave) break;
-        i++;
-    }
+    m->comparacoes++;
+    if (Reg.Chave < Ap->r[i - 1].Chave) i--;
 
-    Ins(item, ap->filhos[i], cresceu, itemRet, apRet, m);
-    if (!*cresceu) return;
+    Ins(Reg, Ap->p[i], Cresceu, RegRetorno, ApRetorno, m);
+    if (!*Cresceu) return;
 
-    // O filho i dividiu (ou estamos numa folha): *itemRet entra na posicao i
-    if (ap->n < MM_B) {                 // pagina tem espaco
-        InsereNaPagina(ap, i, *itemRet, *apRet);
-        *cresceu = false;
+    if (Ap->n < MM) {   // Pagina tem espaco
+        InsereNaPagina(Ap, *RegRetorno, *ApRetorno, m);
+        *Cresceu = FALSE;
         return;
     }
 
-    // Overflow: a pagina tem 2M itens e vai receber mais um. Monta vetores
-    // temporarios com os 2M+1 itens (ja com o novo) e divide:
-    // M itens ficam aqui, o item do meio sobe e os outros M vao para a irma.
-    ItemB       tmpItens[MM_B + 1];
-    ApontadorB  tmpFilhos[MM_B + 2];
+    // Overflow: Pagina tem que ser dividida
+    ApTemp = (TipoApontador)malloc(sizeof(TipoPagina));
+    ApTemp->n = 0;
+    ApTemp->p[0] = NULL;
 
-    for (int j = 0; j < i; j++) tmpItens[j] = ap->itens[j];
-    tmpItens[i] = *itemRet;
-    for (int j = i; j < MM_B; j++) tmpItens[j + 1] = ap->itens[j];
+    if (i < M + 1) {
+        InsereNaPagina(ApTemp, Ap->r[MM - 1], Ap->p[MM], m);
+        Ap->n--;
+        InsereNaPagina(Ap, *RegRetorno, *ApRetorno, m);
+    } else
+        InsereNaPagina(ApTemp, *RegRetorno, *ApRetorno, m);
 
-    for (int j = 0; j <= i; j++) tmpFilhos[j] = ap->filhos[j];
-    tmpFilhos[i + 1] = *apRet;
-    for (int j = i + 1; j <= MM_B; j++) tmpFilhos[j + 1] = ap->filhos[j];
+    for (j = M + 2; j <= MM; j++)
+        InsereNaPagina(ApTemp, Ap->r[j - 1], Ap->p[j], m);
 
-    ApontadorB irma = NovaPagina();
-
-    ap->n = M_B;
-    for (int j = 0; j < M_B; j++)  ap->itens[j]  = tmpItens[j];
-    for (int j = 0; j <= M_B; j++) ap->filhos[j] = tmpFilhos[j];
-    for (int j = M_B + 1; j <= MM_B; j++) ap->filhos[j] = nullptr;   // limpa restos
-
-    irma->n = M_B;
-    for (int j = 0; j < M_B; j++)  irma->itens[j]  = tmpItens[M_B + 1 + j];
-    for (int j = 0; j <= M_B; j++) irma->filhos[j] = tmpFilhos[M_B + 1 + j];
-
-    *itemRet = tmpItens[M_B];   // item do meio sobe para o pai
-    *apRet   = irma;            // *cresceu continua true
+    Ap->n = M;
+    ApTemp->p[0] = Ap->p[M + 1];
+    *RegRetorno = Ap->r[M];
+    *ApRetorno = ApTemp;
 }
 
-// Insere na arvore inteira; se a raiz dividir, a arvore cresce em altura.
-static void Insere(ItemB item, ApontadorB* raiz, Metricas* m) {
-   
-    bool cresceu = false;
-    ItemB itemRet;
-    ApontadorB apRet = nullptr;
+static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m) {
+    short Cresceu = FALSE;
+    TipoRegistro RegRetorno;
+    TipoApontador ApRetorno = NULL, ApTemp;
 
-    Ins(item, *raiz, &cresceu, &itemRet, &apRet, m);
+    Ins(Reg, *Ap, &Cresceu, &RegRetorno, &ApRetorno, m);
 
-    if (cresceu) {                      // nova raiz com um unico item
-        ApontadorB nova = NovaPagina();
-        nova->n = 1;
-        nova->itens[0]  = itemRet;
-        nova->filhos[0] = *raiz;
-        nova->filhos[1] = apRet;
-        *raiz = nova;
+    if (Cresceu) {   // Arvore cresce na altura pela raiz
+        ApTemp = (TipoApontador)malloc(sizeof(TipoPagina));
+        ApTemp->n = 1;
+        ApTemp->r[0] = RegRetorno;
+        ApTemp->p[1] = ApRetorno;
+        ApTemp->p[0] = *Ap;
+        *Ap = ApTemp;
     }
 }
 
-bool CriarArvoreB(FILE* arq, int quantidade, ApontadorB* raiz, Metricas* m) {
+// Le o arquivo inteiro, registro por registro, e insere cada chave na arvore
+bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m) {
+    Registro reg;
+    TipoRegistro item;
+
+    Inicializa(Arvore);
+    rewind(arq);
+
+    for (int i = 0; i < quantidade; i++) {
+        if (fread(&reg, sizeof(Registro), 1, arq) != 1) return false;
+        m->transferencias++;      // 1 leitura de registro
+
+        item.Chave = reg.chave;
+        item.Posicao = i;         // posicao do registro no arquivo
+        Insere(item, Arvore, m);
+    }
+    return true;
+}
+
+// Procura x->Chave a partir da pagina Ap. Se achar, *x recebe o item (com a Posicao do registro no arquivo).
+
+static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m) {
     
-    auto inicio = std::chrono::steady_clock::now();
-    bool ok = true;
+    long i = 1;
 
-    *raiz = nullptr;                    // arvore vazia (Inicializa)
+    if (Ap == NULL) return false;  
 
-    try {
-        // Le o arquivo inteiro, registro por registro, e insere cada chave
-        if (Seek64(arq, 0) != 0) {
-            ok = false;
-        } else {
-            Registro reg;
-            for (int i = 0; i < quantidade && ok; i++) {
-                if (std::fread(&reg, sizeof(Registro), 1, arq) != 1) {
-                    ok = false;
-                    break;
-                }
-                m->transferencias++;    // 1 leitura de registro
-
-                ItemB item;
-                item.chave   = reg.chave;
-                item.posicao = i;       // posicao do registro no arquivo
-                Insere(item, raiz, m);
-            }
-        }
-    } catch (const std::bad_alloc&) {   // sem memoria para novas paginas
-        ok = false;
-    }
-
-    m->tempo += SegundosDesde(inicio);
-    return ok;
-}
-
-// Procura 'chave' a partir da pagina 'ap'. Se achar, guarda em *posicao a
-// posicao do registro no arquivo.
-static bool Pesquisa(ApontadorB ap, int chave, int* posicao, Metricas* m) {
-    if (ap == nullptr) return false;    // chegou abaixo de uma folha: nao existe
-
-    // Pesquisa sequencial para encontrar o intervalo desejado
-    int i = 0;
-    while (i < ap->n) {
+    // Pesquisa sequencial para se encontrar o intervalo desejado
+    while (i < Ap->n) {
         m->comparacoes++;
-        if (chave == ap->itens[i].chave) {   // achou a chave
-            *posicao = ap->itens[i].posicao;
-            return true;
-        }
-        if (chave < ap->itens[i].chave) break;
-        i++;
+        if (x->Chave > Ap->r[i - 1].Chave) i++;
+        else break;
     }
 
-    // Ativacao recursiva em uma das subarvores (esquerda de itens[i])
-    return Pesquisa(ap->filhos[i], chave, posicao, m);
-}
-
-bool PesquisarArvoreB(FILE* arq, ApontadorB raiz, int chave, Registro* reg, Metricas* m) {
-    
-  auto inicio = std::chrono::steady_clock::now();
-    bool achou = false;
-    int posicao = 0;
-
-    if (Pesquisa(raiz, chave, &posicao, m)) {
-        // Achou na arvore: le o registro completo do arquivo
-        long long desloc = (long long)posicao * sizeof(Registro);
-        if (Seek64(arq, desloc) == 0 && std::fread(reg, sizeof(Registro), 1, arq) == 1) {
-            m->transferencias++;
-            achou = true;
-        }
+    // Verifica se a chave desejada foi localizada
+    m->comparacoes++;
+    if (x->Chave == Ap->r[i - 1].Chave) {
+        *x = Ap->r[i - 1];
+        return true;
     }
 
-    m->tempo += SegundosDesde(inicio);
-    return achou;
+    // Ativacao recursiva da Pesquisa em uma das subarvores (esquerda ou direita)
+    m->comparacoes++;
+    if (x->Chave < Ap->r[i - 1].Chave) return Pesquisa(x, Ap->p[i - 1], m);
+    else return Pesquisa(x, Ap->p[i], m);
 }
 
-void LiberarArvoreB(ApontadorB raiz) {
-    if (raiz == nullptr) return;
-    for (int i = 0; i <= raiz->n; i++) LiberarArvoreB(raiz->filhos[i]);
-    delete raiz;
+bool PesquisarArvoreB(FILE* arq, TipoApontador Arvore, int chave,
+                      Registro* reg, Metricas* m) {
+    TipoRegistro x;
+    x.Chave = chave;
+
+    if (!Pesquisa(&x, Arvore, m)) return false;   // nao esta na arvore: nada e lido
+
+    // Achou na arvore: le o registro completo do arquivo
+    if (Seek64(arq, (long long)x.Posicao * sizeof(Registro)) != 0) return false;
+    if (fread(reg, sizeof(Registro), 1, arq) != 1) return false;
+    m->transferencias++;
+    return true;
+}
+
+void LiberarArvoreB(TipoApontador Ap) {
+    if (Ap == NULL) return;
+    for (int i = 0; i <= Ap->n; i++) LiberarArvoreB(Ap->p[i]);
+    free(Ap);
 }

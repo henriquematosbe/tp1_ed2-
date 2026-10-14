@@ -147,13 +147,12 @@ bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m)
 }
 
 // Procura x->Chave a partir da pagina Ap. Se achar, *x recebe o item (com a Posicao do registro no arquivo).
-
 static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m){
     
     long i = 1;
     if (Ap == NULL) return false;  
 
-    // Pesquisa sequencial para se encontrar o intervalo desejado
+    // Pesquisa sequencial para encontrar o intervalo desejado
     while (i < Ap->n) {
         m->comparacoes++;
         if (x->Chave > Ap->r[i - 1].Chave) i++;

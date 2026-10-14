@@ -56,8 +56,8 @@ static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu, TipoRegistro
 
     if (Ap == NULL) {
         *Cresceu = TRUE;
-        (*RegRetorno) = Reg;
-        (*ApRetorno) = NULL;
+        (*RegRetorno) = Reg; //reg que vai retornar 
+        (*ApRetorno) = NULL; //pra onde essa reg (chave) vai apontar 
         return;
     }
     
@@ -79,7 +79,6 @@ static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu, TipoRegistro
     Ins(Reg, Ap->p[i], Cresceu, RegRetorno, ApRetorno, m);
     
     if (!*Cresceu) return;
-
     if (Ap->n < MM) {   // Pagina tem espaco
         InsereNaPagina(Ap, *RegRetorno, *ApRetorno, m);
         *Cresceu = FALSE;
@@ -99,11 +98,12 @@ static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu, TipoRegistro
         InsereNaPagina(Ap, *RegRetorno, *ApRetorno, m);
     }else
         InsereNaPagina(ApTemp, *RegRetorno, *ApRetorno, m);
-    //"Motifica" o n
-    for (j = M + 2; j <= MM; j++)
+    
+    for (j = M + 2; j <= MM; j++) 
         InsereNaPagina(ApTemp, Ap->r[j - 1], Ap->p[j], m);
     
     //Atualiza as informações da pagina depois do overflow
+    //Principalmente pra onde cada coisa aponta  
     Ap->n = M;
     ApTemp->p[0] = Ap->p[M + 1];
     *RegRetorno = Ap->r[M];
@@ -118,7 +118,7 @@ static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m){
     Ins(Reg, *Ap, &Cresceu, &RegRetorno, &ApRetorno, m);
 
     if (Cresceu) {   // Arvore cresce na altura pela raiz
-        ApTemp = (TipoApontador)malloc(sizeof(TipoPagina));
+        ApTemp = (TipoApontador)malloc(sizeof(TipoPagina)); //Cria um apontador temporario 
         ApTemp->n = 1;
         ApTemp->r[0] = RegRetorno;
         ApTemp->p[1] = ApRetorno;
@@ -151,7 +151,6 @@ bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m)
 static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m){
     
     long i = 1;
-
     if (Ap == NULL) return false;  
 
     // Pesquisa sequencial para se encontrar o intervalo desejado
@@ -160,27 +159,24 @@ static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m){
         if (x->Chave > Ap->r[i - 1].Chave) i++;
         else break;
     }
-
     // Verifica se a chave desejada foi localizada
     m->comparacoes++;
     if (x->Chave == Ap->r[i - 1].Chave) {
         *x = Ap->r[i - 1];
         return true;
     }
-
     // Ativacao recursiva da Pesquisa em uma das subarvores (esquerda ou direita)
     m->comparacoes++;
     if (x->Chave < Ap->r[i - 1].Chave) return Pesquisa(x, Ap->p[i - 1], m);
     else return Pesquisa(x, Ap->p[i], m);
 }
 
-bool PesquisarArvoreB(FILE* arq, TipoApontador Arvore, int chave,
-                      Registro* reg, Metricas* m) {
+bool PesquisarArvoreB(FILE* arq, TipoApontador Arvore, int chave, Registro* reg, Metricas* m){
+    
     TipoRegistro x;
     x.Chave = chave;
 
     if (!Pesquisa(&x, Arvore, m)) return false;   // nao esta na arvore: nada e lido
-
     // Achou na arvore: le o registro completo do arquivo
     if (Seek64(arq, (long long)x.Posicao * sizeof(Registro)) != 0) return false;
     if (fread(reg, sizeof(Registro), 1, arq) != 1) return false;
@@ -188,7 +184,7 @@ bool PesquisarArvoreB(FILE* arq, TipoApontador Arvore, int chave,
     return true;
 }
 
-void LiberarArvoreB(TipoApontador Ap) {
+void LiberarArvoreB(TipoApontador Ap){
     if (Ap == NULL) return;
     for (int i = 0; i <= Ap->n; i++) LiberarArvoreB(Ap->p[i]);
     free(Ap);

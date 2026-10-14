@@ -21,7 +21,7 @@ static void Inicializa(TipoApontador* Arvore) {
     *Arvore = NULL;
 }
 
-static void InsereNaPagina(TipoApontador Ap, TipoRegistro Reg, TipoApontador ApDir, Metricas* m) {
+static void InsereNaPagina(TipoApontador Ap, TipoRegistro Reg, TipoApontador ApDir, Metricas* m){
     
     short NaoAchouPosicao;
     int k;
@@ -44,8 +44,8 @@ static void InsereNaPagina(TipoApontador Ap, TipoRegistro Reg, TipoApontador ApD
     Ap->n++;
 }
 
-static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu,
-                TipoRegistro* RegRetorno, TipoApontador* ApRetorno, Metricas* m) {
+static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu, TipoRegistro* RegRetorno, TipoApontador* ApRetorno, Metricas* m){
+    
     long i = 1;
     long j;
     TipoApontador ApTemp;
@@ -103,7 +103,7 @@ static void Ins(TipoRegistro Reg, TipoApontador Ap, short* Cresceu,
     *ApRetorno = ApTemp;
 }
 
-static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m) {
+static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m){
     short Cresceu = FALSE;
     TipoRegistro RegRetorno;
     TipoApontador ApRetorno = NULL, ApTemp;
@@ -121,7 +121,7 @@ static void Insere(TipoRegistro Reg, TipoApontador* Ap, Metricas* m) {
 }
 
 // Le o arquivo inteiro, registro por registro, e insere cada chave na arvore
-bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m) {
+bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m){
     Registro reg;
     TipoRegistro item;
 
@@ -141,7 +141,7 @@ bool CriarArvoreB(FILE* arq, int quantidade, TipoApontador* Arvore, Metricas* m)
 
 // Procura x->Chave a partir da pagina Ap. Se achar, *x recebe o item (com a Posicao do registro no arquivo).
 
-static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m) {
+static bool Pesquisa(TipoRegistro* x, TipoApontador Ap, Metricas* m){
     
     long i = 1;
 

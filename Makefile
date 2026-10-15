@@ -3,17 +3,18 @@ CXXFLAGS = -std=c++17 -O2 -Wall -Wextra
 
 FONTES  = $(wildcard src/*.cpp)
 OBJETOS = $(FONTES:.cpp=.o)
+METODOS = $(filter-out src/main.o, $(OBJETOS))
 
-all: pesquisa gerar
+all: pesquisa experimentos
 
 pesquisa: $(OBJETOS)
 	$(CXX) $(CXXFLAGS) -o pesquisa $(OBJETOS)
 
-gerar: tools/gerar.cpp src/arquivo.cpp
-	$(CXX) $(CXXFLAGS) -o gerar tools/gerar.cpp src/arquivo.cpp
+experimentos: tools/experimentos.cpp $(METODOS)
+	$(CXX) $(CXXFLAGS) -o experimentos tools/experimentos.cpp $(METODOS)
 
 src/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f src/*.o pesquisa gerar
+	rm -f src/*.o pesquisa experimentos

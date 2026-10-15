@@ -33,7 +33,7 @@ static ApontadorBE NovaInterna() {
     return p;
 }
 
-// ───────────────────── Pesquisa ─────────────────────
+// Pesquisa 
 
 bool PesquisarArvoreBEstrela(FILE* arq, ApontadorBE raiz, int chave,
                              Registro* reg, Metricas* m) {

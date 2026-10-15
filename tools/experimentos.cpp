@@ -1,12 +1,10 @@
-// experimentos.cpp - Gera os resultados usados no relatorio.
+// experimentos.cpp - Gera os resultados do relatorio.
+// Para cada quantidade e situacao: gera o arquivo (se preciso) e, para cada
+// metodo que aceita a situacao, cria o indice uma vez e pesquisa 20 chaves
+// espalhadas (1 + k*(n-1)/19), gravando a media em resultados/resultados.csv.
 //
-// Para um tamanho de arquivo (n) e uma situacao de ordem, roda cada metodo
-// que aceita essa situacao: cria o indice UMA vez e pesquisa 20 chaves
-// espalhadas pelo arquivo (1 + k*(n-1)/19, k = 0..19), tirando a media.
-// Cada linha e acrescentada em resultados/experimentos.csv.
-//
-// Uso: experimentos <quantidade> <situacao>
-//      situacao: 1 = crescente, 2 = decrescente, 3 = aleatoria
+// Uso: experimentos                  (100, 200, 2000, 20000 e 200000 registros)
+//      experimentos 2000000          (so as quantidades informadas)
 
 #include <chrono>
 #include <cstdio>
@@ -14,122 +12,87 @@
 #include <filesystem>
 #include <string>
 #include <vector>
-
 #include "../src/arquivo.hpp"
-#include "../src/registro.hpp"
 #include "../src/sequencial.hpp"
 #include "../src/arvorebin.hpp"
 #include "../src/arvoreb.hpp"
 #include "../src/arvorebest.hpp"
 
-typedef std::chrono::steady_clock Relogio;
+// Segundos desde 'inicio' (relogio de alta resolucao)
+double Segundos(std::chrono::steady_clock::time_point inicio) {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - inicio).count();
+}
 
-// Segundos entre dois instantes (relogio de alta resolucao)
-double Segundos(Relogio::time_point a, Relogio::time_point b) {
-    return std::chrono::duration<double>(b - a).count();
+// Roda um metodo: cria o indice, faz as 20 pesquisas e grava uma linha no CSV
+void Rodar(FILE* csv, int m, int n, int sit, std::string arq) {
+    FILE* f = fopen(arq.c_str(), "rb");
+    Metricas idx;
+    std::vector<int> tabela;
+    TipoApontador raizB = nullptr;
+    ApontadorBE raizBE = nullptr;
+
+    // Cria o indice uma vez
+    auto inicio = std::chrono::steady_clock::now();
+    if (m == 1) CriarIndiceSequencial(arq.c_str(), n, &tabela, &idx.transferencias, &idx.comparacoes);
+    if (m == 2) CriarArvoreBinaria(arq.c_str(), "nos.idx", n, &idx.transferencias, &idx.comparacoes);
+    if (m == 3) CriarArvoreB(f, n, &raizB, &idx);
+    if (m == 4) CriarArvoreBEstrela(f, n, &raizBE, &idx);
+    idx.tempo = Segundos(inicio);
+
+    // 20 pesquisas, somando as metricas de todas
+    Metricas soma;
+    int achadas = 0;
+    for (int k = 0; k < 20; k++) {
+        Registro x;
+        x.chave = 1 + (int)((long long)k * (n - 1) / 19);
+        bool achou = false;
+        inicio = std::chrono::steady_clock::now();
+        if (m == 1) achou = PesquisarSequencial(arq.c_str(), n, &tabela, &x, &soma.transferencias, &soma.comparacoes);
+        if (m == 2) achou = PesquisarArvoreBinaria(arq.c_str(), "nos.idx", &x, &soma.transferencias, &soma.comparacoes);
+        if (m == 3) achou = PesquisarArvoreB(f, raizB, x.chave, &x, &soma);
+        if (m == 4) achou = PesquisarArvoreBEstrela(f, raizBE, x.chave, &x, &soma);
+        soma.tempo += Segundos(inicio);
+        if (achou && x.dado1 == x.chave * 10L) achadas++;   // registro certo?
+    }
+
+    fprintf(csv, "%d,%d,%d,%ld,%ld,%.6f,%.2f,%.2f,%.9f,%d\n", m, n, sit,
+            idx.transferencias, idx.comparacoes, idx.tempo,
+            soma.transferencias / 20.0, soma.comparacoes / 20.0, soma.tempo / 20, achadas);
+    fflush(csv);
+    printf("metodo %d, %d registros, situacao %d: %d/20 chaves achadas\n", m, n, sit, achadas);
+
+    LiberarArvoreB(raizB);
+    LiberarArvoreBEstrela(raizBE);
+    fclose(f);
+    std::filesystem::remove("nos.idx");
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
-        printf("Uso: experimentos <quantidade> <situacao>\n");
-        return 1;
-    }
-    int n = atoi(argv[1]);
-    int situacao = atoi(argv[2]);
-    if (n <= 0 || situacao < 1 || situacao > 3) {
-        printf("Erro: quantidade > 0 e situacao de 1 a 3.\n");
-        return 1;
+    std::vector<int> quantidades = {100, 200, 2000, 20000, 200000};
+    if (argc > 1) {
+        quantidades.clear();
+        for (int i = 1; i < argc; i++) quantidades.push_back(atoi(argv[i]));
     }
 
-    std::string nomeArq = "dados_" + std::to_string(n) + "_" + std::to_string(situacao) + ".bin";
-    std::string nomeNos = "nos_" + std::to_string(n) + ".idx";
-    if (!ArquivoValido(nomeArq, n) && !GerarArquivo(nomeArq, n, situacao)) {
-        printf("Erro: nao foi possivel criar %s.\n", nomeArq.c_str());
-        return 1;
-    }
-
-    // Metodos que aceitam cada situacao (igual ao main.cpp)
-    std::vector<int> metodos;
-    if (situacao == 1) metodos = {1, 3, 4};
-    else if (situacao == 2) metodos = {3, 4};
-    else metodos = {2, 3, 4};
-
-    // Abre o CSV de resultados (escreve o cabecalho se ele for novo)
     std::filesystem::create_directories("resultados");
-    std::string nomeCsv = "resultados/experimentos.csv";
-    bool novo = !std::filesystem::exists(nomeCsv);
-    FILE* csv = fopen(nomeCsv.c_str(), "a");
-    if (csv == nullptr) {
-        printf("Erro: nao foi possivel abrir %s.\n", nomeCsv.c_str());
-        return 1;
-    }
-    if (novo)
-        fprintf(csv, "metodo,quantidade,situacao,indice_transf,indice_comp,indice_tempo_s,"
-                     "pesquisa_transf_media,pesquisa_comp_media,pesquisa_tempo_medio_s,chaves_achadas\n");
+    FILE* csv = fopen("resultados/resultados.csv", "w");
+    fprintf(csv, "metodo,quantidade,situacao,indice_transf,indice_comp,indice_tempo_s,"
+                 "pesquisa_transf_media,pesquisa_comp_media,pesquisa_tempo_medio_s,chaves_achadas\n");
 
-    for (int metodo : metodos) {
-        Metricas indice;
-        std::vector<int> tabela;          // metodo 1
-        TipoApontador raizB = nullptr;    // metodo 3
-        ApontadorBE raizBE = nullptr;     // metodo 4
-        FILE* arq = fopen(nomeArq.c_str(), "rb");
-        if (arq == nullptr) {
-            printf("Erro: nao foi possivel abrir %s.\n", nomeArq.c_str());
-            return 1;
+    for (int n : quantidades) {
+        for (int sit = 1; sit <= 3; sit++) {
+            std::string arq = "dados_" + std::to_string(n) + "_" + std::to_string(sit) + ".bin";
+            if (!ArquivoValido(arq, n)) GerarArquivo(arq, n, sit);
+
+            if (sit == 1) Rodar(csv, 1, n, sit, arq);   // sequencial: so crescente
+            if (sit == 3) Rodar(csv, 2, n, sit, arq);   // binaria: so aleatorio
+            Rodar(csv, 3, n, sit, arq);
+            Rodar(csv, 4, n, sit, arq);
+
+            if (n >= 2000000) std::filesystem::remove(arq);   // arquivo de ~10 GB
         }
-
-        // ── Criacao do indice (uma vez) ──
-        Relogio::time_point inicio = Relogio::now();
-        if (metodo == 1)
-            CriarIndiceSequencial(nomeArq.c_str(), n, &tabela, &indice.transferencias, &indice.comparacoes);
-        else if (metodo == 2)
-            CriarArvoreBinaria(nomeArq.c_str(), nomeNos.c_str(), n, &indice.transferencias, &indice.comparacoes);
-        else if (metodo == 3)
-            CriarArvoreB(arq, n, &raizB, &indice);
-        else
-            CriarArvoreBEstrela(arq, n, &raizBE, &indice);
-        indice.tempo = Segundos(inicio, Relogio::now());
-
-        // ── 20 pesquisas: soma tudo e depois divide por 20 ──
-        double somaTransf = 0, somaComp = 0, somaTempo = 0;
-        int achadas = 0;
-        for (int k = 0; k < 20; k++) {
-            int chave = 1 + (int)((long long)k * (n - 1) / 19);
-            Registro x;
-            x.chave = chave;
-            Metricas p;
-            bool achou;
-
-            Relogio::time_point a = Relogio::now();
-            if (metodo == 1)
-                achou = PesquisarSequencial(nomeArq.c_str(), n, &tabela, &x, &p.transferencias, &p.comparacoes);
-            else if (metodo == 2)
-                achou = PesquisarArvoreBinaria(nomeArq.c_str(), nomeNos.c_str(), &x, &p.transferencias, &p.comparacoes);
-            else if (metodo == 3)
-                achou = PesquisarArvoreB(arq, raizB, chave, &x, &p);
-            else
-                achou = PesquisarArvoreBEstrela(arq, raizBE, chave, &x, &p);
-            somaTempo += Segundos(a, Relogio::now());
-
-            // Confere se o registro devolvido e o certo (dado1 = chave * 10)
-            if (achou && x.chave == chave && x.dado1 == (long)chave * 10) achadas++;
-            somaTransf += p.transferencias;
-            somaComp += p.comparacoes;
-        }
-
-        fprintf(csv, "%d,%d,%d,%ld,%ld,%.6f,%.2f,%.2f,%.9f,%d\n", metodo, n, situacao,
-                indice.transferencias, indice.comparacoes, indice.tempo,
-                somaTransf / 20, somaComp / 20, somaTempo / 20, achadas);
-        printf("metodo %d, %d registros, situacao %d: %d/20 chaves achadas\n", metodo, n, situacao, achadas);
-
-        LiberarArvoreB(raizB);
-        LiberarArvoreBEstrela(raizBE);
-        fclose(arq);
     }
     fclose(csv);
-
-    // Apaga os arquivos auxiliares; o de 2 milhoes tem ~10 GB
-    std::filesystem::remove(nomeNos);
-    if (n >= 2000000) std::filesystem::remove(nomeArq);
+    printf("Resultados em resultados/resultados.csv\n");
     return 0;
 }
